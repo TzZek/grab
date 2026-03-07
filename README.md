@@ -5,6 +5,7 @@ Download and compress media for target platforms. Modular Python CLI — each mo
 ## Install
 
 ```bash
+git clone https://github.com/TzZek/grab.git
 cd grab
 uv venv && source .venv/bin/activate
 uv pip install -e .
