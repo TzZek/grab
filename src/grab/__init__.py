@@ -17,6 +17,7 @@ class MediaInfo:
     codec: str | None = None
     audio_codec: str | None = None
     format: str | None = None
+    media_type: str | None = None  # "video", "image", or "audio"
 
     def to_dict(self) -> dict:
         return {k: v for k, v in asdict(self).items() if v is not None}

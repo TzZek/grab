@@ -47,6 +47,17 @@ def probe(path: str | Path) -> MediaInfo:
     if "duration" in fmt:
         duration = float(fmt["duration"])
 
+    # Detect media type
+    from grab.image import IMAGE_EXTENSIONS
+    if path.suffix.lower() in IMAGE_EXTENSIONS:
+        media_type = "image"
+    elif video and duration and duration > 0:
+        media_type = "video"
+    elif audio:
+        media_type = "audio"
+    else:
+        media_type = "video"  # default assumption
+
     return MediaInfo(
         path=str(path.resolve()),
         size_bytes=path.stat().st_size,
@@ -56,6 +67,7 @@ def probe(path: str | Path) -> MediaInfo:
         codec=video.get("codec_name") if video else None,
         audio_codec=audio.get("codec_name") if audio else None,
         format=fmt.get("format_name"),
+        media_type=media_type,
     )
 
 
