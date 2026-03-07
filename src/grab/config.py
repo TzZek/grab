@@ -22,6 +22,16 @@ DEFAULTS = {
     "default_quality": "1080",
     "filename_template": "{source}_{title}_{date}",
     "cookies_from_browser": "",
+    "transcribe_backend": "faster-whisper",
+    "transcribe_model": "base",
+    "transcribe_language": "",
+    "summarize_backend": "ollama",
+    "summarize_model": "",
+    "summarize_prompt": "",
+    "summarize_api_base": "http://localhost:8080/v1",
+    "summarize_api_key": "",
+    "obsidian_vault": "",
+    "obsidian_folder": "reference/videos",
 }
 
 

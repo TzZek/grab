@@ -86,7 +86,7 @@ def download_ytdlp(
     """Download via yt-dlp. Returns file path."""
     out_template = str(output_dir / "%(title).60s.%(ext)s")
 
-    cmd = ["yt-dlp", "--no-playlist", "-o", out_template]
+    cmd = ["yt-dlp", "--no-playlist", "--write-info-json", "-o", out_template]
 
     if audio_only:
         cmd += ["-x", "--audio-format", "mp3"]
