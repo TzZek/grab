@@ -28,6 +28,7 @@ from grab.image import is_image, resize_image
 from grab.gif import to_gif
 from grab.naming import generate_filename, deduplicate
 from grab.presets import resolve_preset, PRESETS
+from grab.util import human_size
 
 
 def get_output_dir(cli_dir: str | None, config: dict) -> Path:
@@ -181,7 +182,7 @@ def run_pdf(url: str, args: argparse.Namespace, config: dict) -> None:
 
     print(pdf_info.to_json())
     if not args.json:
-        log(f"saved: {final_path}")
+        log(f"saved: {final_path} ({human_size(final_path.stat().st_size)})")
 
 
 def run_article(url: str, args: argparse.Namespace, config: dict) -> None:
@@ -272,7 +273,7 @@ def run_single(url: str, args: argparse.Namespace, config: dict) -> None:
                           width=args.gif_width, max_bytes=max_bytes)
         print(gif_info.to_json())
         if not args.json:
-            log(f"saved gif: {gif_path}")
+            log(f"saved gif: {gif_path} ({human_size(gif_path.stat().st_size)})")
         return
 
     _run_transcribe_summarize(final_path, url, args, config)
@@ -280,7 +281,7 @@ def run_single(url: str, args: argparse.Namespace, config: dict) -> None:
     final_info = probe(final_path)
     print(final_info.to_json())
     if not args.json:
-        log(f"saved: {final_path}")
+        log(f"saved: {final_path} ({human_size(final_path.stat().st_size)})")
 
 
 def run_batch(batch_file: str, args: argparse.Namespace, config: dict) -> None:
