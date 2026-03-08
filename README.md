@@ -336,8 +336,54 @@ python -m grab.summarize transcript.srt          # text → summary
 python -m grab.obsidian summary.md --vault ~/vault  # summary → Obsidian note
 python -m grab.naming <url>                      # generate clean filename
 python -m grab.presets                           # list all presets
+python -m grab.cobalt status                     # cobalt container status
 python -m grab.config show                       # show config
 ```
+
+## Cobalt integration
+
+grab automatically spins up a [cobalt](https://github.com/imputnet/cobalt) Docker container when downloading from platforms where yt-dlp needs authentication (Instagram, Twitter/X, TikTok, etc.). The container stops automatically when grab exits.
+
+```bash
+# First time: pull the cobalt image
+grab cobalt pull
+
+# That's it — grab handles the rest automatically.
+# When you run:
+grab "https://www.instagram.com/reel/abc123"
+# grab will: start cobalt → download → stop cobalt
+```
+
+### Platform cookies
+
+Instagram, Twitter, and Reddit require cookies even through cobalt. Create `~/.config/grab/cookies.json`:
+
+```json
+{
+    "instagram": ["mid=...; ig_did=...; csrftoken=...; ds_user_id=...; sessionid=..."],
+    "twitter": ["auth_token=...; ct0=..."],
+    "reddit": ["client_id=...; client_secret=...; refresh_token=..."]
+}
+```
+
+The cookies file is automatically mounted into the cobalt container when it starts.
+
+### Manual control
+
+```bash
+grab cobalt status    # check if container is running
+grab cobalt start     # start manually (stays running)
+grab cobalt stop      # stop and remove container
+grab cobalt pull      # pull/update cobalt image
+```
+
+If you prefer a persistent cobalt instance, set the URL directly:
+
+```bash
+grab config set cobalt_api http://localhost:9000
+```
+
+When `cobalt_api` is set, grab uses that URL directly and skips auto container management.
 
 ## Dependencies
 
@@ -346,8 +392,9 @@ python -m grab.config show                       # show config
 - **yt-dlp** — media downloading
 - **ImageMagick** — image processing
 - **httpx** — HTTP client (for cobalt API)
+- **Docker** — (optional) for auto cobalt container management
 
-Optionally uses [cobalt](https://github.com/imputnet/cobalt) API for downloading. This project is not affiliated with cobalt.
+This project is not affiliated with cobalt.
 
 ## License
 

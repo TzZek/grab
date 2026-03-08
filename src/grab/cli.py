@@ -195,6 +195,7 @@ _SUBCOMMANDS = {
     "gif": ("grab.gif", "main", "grab-gif"),
     "transcribe": ("grab.transcribe", "main", "grab-transcribe"),
     "summarize": ("grab.summarize", "main", "grab-summarize"),
+    "cobalt": ("grab.cobalt", "main", "grab-cobalt"),
 }
 
 

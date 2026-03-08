@@ -30,7 +30,7 @@ def download_cobalt(
     body = {
         "url": url,
         "downloadMode": "audio" if audio_only else "auto",
-        "videoQuality": f"{quality}p" if not quality.endswith("p") else quality,
+        "videoQuality": quality.rstrip("p"),
         "filenameStyle": "basic",
     }
 
@@ -129,6 +129,16 @@ def download(
 
     cobalt_api = cobalt_api or os.environ.get("GRAB_COBALT_API")
     path = None
+
+    # Auto-start cobalt for platforms that need it
+    if not cobalt_api:
+        from grab.cobalt import needs_cobalt
+        if needs_cobalt(url):
+            try:
+                from grab.cobalt import ensure_running
+                cobalt_api = ensure_running()
+            except Exception as e:
+                log(f"cobalt auto-start failed: {e}, trying yt-dlp...")
 
     if cobalt_api:
         path = download_cobalt(url, cobalt_api, output_dir, quality, audio_only)
