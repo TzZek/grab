@@ -56,15 +56,15 @@ def _sanitize_filename(name: str) -> str:
     return re.sub(r'[\\/*?:"<>|]', "", name).strip()
 
 
-def _build_tags(meta: dict) -> list[str]:
-    tags = ["video-note"]
+def _build_tags(meta: dict, content_type: str = "video-note") -> list[str]:
+    tags = [content_type]
     for cat in (meta.get("categories") or []):
         tag = cat.lower().replace(" ", "-").replace("&", "and")
-        if tag and tag != "video-note":
+        if tag and tag != content_type:
             tags.append(tag)
-    channel = meta.get("channel") or meta.get("uploader") or ""
-    if channel:
-        slug = re.sub(r"[^a-z0-9]+", "-", channel.lower()).strip("-")
+    author = meta.get("channel") or meta.get("uploader") or meta.get("author") or ""
+    if author:
+        slug = re.sub(r"[^a-z0-9]+", "-", author.lower()).strip("-")
         if slug:
             tags.append(slug)
     return tags
@@ -117,23 +117,46 @@ def write_note(
     media_path: Path | None = None,
     meta: dict | None = None,
     transcript: str | None = None,
+    content_type: str = "video-note",
 ) -> Path:
     """Write a summary as an Obsidian note with YAML frontmatter.
 
     If transcript is provided, also writes a companion transcript note
     and adds a [[backlink]] to it from the summary.
+    content_type: "video-note" or "pdf-note" — controls tags, frontmatter, callout.
     """
     meta, safe_title = _resolve_meta(media_path, meta)
 
     title = meta.get("title") or safe_title
-    author = meta.get("channel") or meta.get("uploader") or ""
-    url = meta.get("webpage_url") or meta.get("original_url") or ""
-    upload_date = meta.get("upload_date") or ""
-    duration = _format_duration(meta.get("duration"))
-    tags = _build_tags(meta)
+    author = meta.get("channel") or meta.get("uploader") or meta.get("author") or ""
+    url = meta.get("webpage_url") or meta.get("original_url") or meta.get("source") or ""
+    tags = _build_tags(meta, content_type)
 
-    if upload_date and len(upload_date) == 8:
-        upload_date = f"{upload_date[:4]}-{upload_date[4:6]}-{upload_date[6:]}"
+    # Build frontmatter based on content type
+    tags_yaml = "\n".join(f"  - {t}" for t in tags)
+    fm_lines = [
+        "---",
+        "tags:",
+        tags_yaml,
+        f'type: {content_type}',
+        f'title: "{title}"',
+        f'author: "{author}"',
+        f'source: "{url}"',
+    ]
+
+    if content_type == "pdf-note":
+        pages = meta.get("pages") or ""
+        fm_lines.append(f'pages: {pages}')
+    else:
+        upload_date = meta.get("upload_date") or ""
+        if upload_date and len(upload_date) == 8:
+            upload_date = f"{upload_date[:4]}-{upload_date[4:6]}-{upload_date[6:]}"
+        duration = _format_duration(meta.get("duration"))
+        fm_lines.append(f'date: {upload_date}')
+        fm_lines.append(f'duration: "{duration}"')
+
+    fm_lines.append("---")
+    frontmatter = "\n".join(fm_lines)
 
     # Write transcript companion note if provided
     transcript_link = ""
@@ -141,25 +164,23 @@ def write_note(
         t_path = write_transcript(transcript, vault_path, folder, media_path, meta)
         transcript_link = f"\n**Full transcript:** [[{t_path.stem}]]\n"
 
-    tags_yaml = "\n".join(f"  - {t}" for t in tags)
-    frontmatter = f"""---
-tags:
-{tags_yaml}
-type: video-note
-title: "{title}"
-author: "{author}"
-source: "{url}"
-date: {upload_date}
-duration: "{duration}"
----"""
-
+    # Build info callout
     info_parts = []
-    if author:
-        info_parts.append(f"**Channel:** {author}")
-    if url:
-        info_parts.append(f"**URL:** {url}")
-    if duration:
-        info_parts.append(f"**Duration:** {duration}")
+    if content_type == "pdf-note":
+        if author:
+            info_parts.append(f"**Author:** {author}")
+        if meta.get("pages"):
+            info_parts.append(f"**Pages:** {meta['pages']}")
+        if url:
+            info_parts.append(f"**Source:** {url}")
+    else:
+        if author:
+            info_parts.append(f"**Channel:** {author}")
+        if url:
+            info_parts.append(f"**URL:** {url}")
+        duration = _format_duration(meta.get("duration"))
+        if duration:
+            info_parts.append(f"**Duration:** {duration}")
 
     callout = ""
     if info_parts:

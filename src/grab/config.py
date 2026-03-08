@@ -32,6 +32,7 @@ DEFAULTS = {
     "summarize_api_key": "",
     "obsidian_vault": "",
     "obsidian_folder": "reference/videos",
+    "obsidian_pdf_folder": "reference/documents",
 }
 
 

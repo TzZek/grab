@@ -20,20 +20,51 @@ from pathlib import Path
 from grab import log
 
 DEFAULT_PROMPT = """/no_think
-You are summarizing a video transcript into a concise reference note.
+You are summarizing a video transcript into a thorough reference note.
 
 Rules:
 - Start with a 1-2 sentence TL;DR
 - Then use "## Key Ideas" with bullet points for the main concepts
 - Use "## Details" for supporting facts, names, numbers, examples
+  - Be thorough — capture all significant points, not just the headline
 - Use "## Resources" if any tools, links, books, or people are mentioned worth following up on
 - Do NOT repeat information across sections
 - Do NOT include a heading for the note title (it's handled externally)
 - Use markdown formatting: **bold** for emphasis, `code` for technical terms
-- Be concise. A 20-minute video should be ~200-400 words, not 1000
+- Aim for ~400-800 words. Cover all key points without padding or redundancy.
 
 Transcript:
 {text}"""
+
+DEFAULT_PDF_PROMPT = """/no_think
+You are summarizing a document into a detailed reference note.
+
+Rules:
+- Start with a 1-2 sentence TL;DR
+- Then use "## Key Points" with bullet points for the main arguments, findings, or provisions
+- Use "## Details" for supporting facts, data, definitions, exceptions, and specifics
+  - Be thorough — capture all significant details, not just the top-level points
+  - For policy/legal documents, note specific requirements, thresholds, dates, and scope
+  - For technical documents, note methodologies, parameters, and caveats
+- Use "## Context" for background information, related documents, or historical context mentioned
+- Use "## Resources" if any references, citations, or links are mentioned
+- Do NOT repeat information across sections
+- Do NOT include a heading for the note title (it's handled externally)
+- Use markdown formatting: **bold** for emphasis, `code` for technical terms
+- Be comprehensive. A 10-page document should be ~600-1200 words. Do not omit key details.
+
+Document text:
+{text}"""
+
+_PROMPTS = {
+    "video": DEFAULT_PROMPT,
+    "document": DEFAULT_PDF_PROMPT,
+}
+
+
+def get_default_prompt(content_type: str = "video") -> str:
+    """Return the default summarization prompt for a content type."""
+    return _PROMPTS.get(content_type, DEFAULT_PROMPT)
 
 
 @dataclass

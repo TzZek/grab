@@ -139,7 +139,59 @@ def _run_transcribe_summarize(final_path: Path, url: str, args: argparse.Namespa
             print_link(vault, note_path)
 
 
+def run_pdf(url: str, args: argparse.Namespace, config: dict) -> None:
+    """Pipeline for PDF URLs: download → extract text → summarize → obsidian."""
+    from grab.pdf import process_pdf, is_pdf_url
+
+    out_dir = get_output_dir(args.dir, config)
+    pdf_info = process_pdf(url, out_dir)
+    final_path = Path(pdf_info.path)
+
+    do_summarize = args.summarize or args.vault
+    if do_summarize:
+        from grab.summarize import summarize as run_summarize, get_default_prompt
+        prompt = config.get("summarize_prompt") or get_default_prompt("document")
+        s_info = run_summarize(
+            text=pdf_info.text,
+            backend=args.summarize_backend or config.get("summarize_backend", "ollama"),
+            model=args.summarize_model or config.get("summarize_model", ""),
+            prompt=prompt,
+            output_path=final_path.with_suffix(".summary.md"),
+            api_base=config.get("summarize_api_base", ""),
+            api_key=config.get("summarize_api_key", ""),
+        )
+        if not args.json:
+            log(f"summary: {s_info.output_path}")
+
+        vault_path = config.get("obsidian_vault", "")
+        if args.vault or vault_path:
+            if not vault_path:
+                log("error: no obsidian_vault configured. Run: grab config set obsidian_vault /path/to/vault")
+            else:
+                from grab.obsidian import write_note, print_link
+                vault = Path(vault_path)
+                meta = pdf_info.metadata or {}
+                meta["source"] = url
+                note_path = write_note(
+                    summary=s_info.summary, vault_path=vault,
+                    folder=config.get("obsidian_pdf_folder", "reference/documents"),
+                    media_path=final_path, meta=meta,
+                    transcript=pdf_info.text,
+                    content_type="pdf-note",
+                )
+                if not args.json:
+                    print_link(vault, note_path)
+
+    print(pdf_info.to_json())
+    if not args.json:
+        log(f"saved: {final_path}")
+
+
 def run_single(url: str, args: argparse.Namespace, config: dict) -> None:
+    from grab.pdf import is_pdf_url
+    if is_pdf_url(url):
+        return run_pdf(url, args, config)
+
     out_dir = get_output_dir(args.dir, config)
     quality = args.quality or config.get("default_quality", "1080")
     cobalt = args.cobalt or config.get("cobalt_api") or None
@@ -194,6 +246,7 @@ def run_batch(batch_file: str, args: argparse.Namespace, config: dict) -> None:
 _SUBCOMMANDS = {
     "config": ("grab.config", "main", "grab-config"),
     "gif": ("grab.gif", "main", "grab-gif"),
+    "pdf": ("grab.pdf", "main", "grab-pdf"),
     "transcribe": ("grab.transcribe", "main", "grab-transcribe"),
     "summarize": ("grab.summarize", "main", "grab-summarize"),
     "cobalt": ("grab.cobalt", "main", "grab-cobalt"),
