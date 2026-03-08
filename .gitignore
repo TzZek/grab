@@ -5,3 +5,9 @@ __pycache__/
 dist/
 build/
 ffmpeg2pass-*
+uv.lock
+
+# Sensitive files — never commit
+cookies.json
+*.cookies
+config.toml

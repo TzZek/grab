@@ -143,7 +143,8 @@ def run_single(url: str, args: argparse.Namespace, config: dict) -> None:
     out_dir = get_output_dir(args.dir, config)
     quality = args.quality or config.get("default_quality", "1080")
     cobalt = args.cobalt or config.get("cobalt_api") or None
-    info = download(url=url, cobalt_api=cobalt, quality=quality, audio_only=args.audio_only)
+    cookies = config.get("cookies_from_browser", "")
+    info = download(url=url, cobalt_api=cobalt, quality=quality, audio_only=args.audio_only, cookies_from_browser=cookies)
     downloaded_path = Path(info.path)
 
     compressed = process_media(info, downloaded_path, out_dir, args, config)

@@ -82,11 +82,15 @@ def download_ytdlp(
     output_dir: Path,
     quality: str = "1080",
     audio_only: bool = False,
+    cookies_from_browser: str = "",
 ) -> Path:
     """Download via yt-dlp. Returns file path."""
     out_template = str(output_dir / "%(title).60s.%(ext)s")
 
     cmd = ["yt-dlp", "--no-playlist", "--write-info-json", "-o", out_template]
+
+    if cookies_from_browser:
+        cmd += ["--cookies-from-browser", cookies_from_browser]
 
     if audio_only:
         cmd += ["-x", "--audio-format", "mp3"]
@@ -116,6 +120,7 @@ def download(
     cobalt_api: str | None = None,
     quality: str = "1080",
     audio_only: bool = False,
+    cookies_from_browser: str = "",
 ) -> MediaInfo:
     """Download media and return its metadata.
 
@@ -136,7 +141,7 @@ def download(
         if needs_cobalt(url):
             try:
                 from grab.cobalt import ensure_running
-                cobalt_api = ensure_running()
+                cobalt_api = ensure_running(cookies_from_browser)
             except Exception as e:
                 log(f"cobalt auto-start failed: {e}, trying yt-dlp...")
 
@@ -146,7 +151,7 @@ def download(
             log("cobalt failed, falling back to yt-dlp...")
 
     if path is None:
-        path = download_ytdlp(url, output_dir, quality, audio_only)
+        path = download_ytdlp(url, output_dir, quality, audio_only, cookies_from_browser)
 
     info = probe(path)
     log(f"downloaded: {path.name} ({_human_size(info.size_bytes)})")
