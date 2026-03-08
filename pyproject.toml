@@ -14,7 +14,8 @@ grab = "grab.cli:main"
 transcribe = ["faster-whisper>=1.0"]
 summarize = ["ollama>=0.4"]
 pdf = ["pymupdf>=1.24"]
-all = ["grab[transcribe,summarize,pdf]"]
+article = ["trafilatura>=1.6"]
+all = ["grab[transcribe,summarize,pdf,article]"]
 
 [build-system]
 requires = ["hatchling"]

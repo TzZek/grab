@@ -33,6 +33,8 @@ DEFAULTS = {
     "obsidian_vault": "",
     "obsidian_folder": "reference/videos",
     "obsidian_pdf_folder": "reference/documents",
+    "obsidian_article_folder": "reference/articles",
+    "obsidian_podcast_folder": "reference/podcasts",
 }
 
 

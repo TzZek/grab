@@ -15,8 +15,9 @@ from pathlib import Path
 
 import httpx
 
-from grab import MediaInfo, log
+from grab import MediaInfo, log, vlog
 from grab.probe import probe
+from grab.util import human_size
 
 
 def download_cobalt(
@@ -148,13 +149,14 @@ def download(
     if cobalt_api:
         path = download_cobalt(url, cobalt_api, output_dir, quality, audio_only)
         if path is None:
+            vlog("cobalt failed, falling back to yt-dlp")
             log("cobalt failed, falling back to yt-dlp...")
 
     if path is None:
         path = download_ytdlp(url, output_dir, quality, audio_only, cookies_from_browser)
 
     info = probe(path)
-    log(f"downloaded: {path.name} ({_human_size(info.size_bytes)})")
+    log(f"downloaded: {path.name} ({human_size(info.size_bytes)})")
     return info
 
 
@@ -179,14 +181,6 @@ def _ext_from_url(url: str) -> str | None:
     if "." in path.split("/")[-1]:
         return "." + path.split(".")[-1].split("?")[0][:5]
     return None
-
-
-def _human_size(n: int) -> str:
-    for unit in ("B", "KB", "MB", "GB"):
-        if n < 1024:
-            return f"{n:.1f} {unit}"
-        n /= 1024
-    return f"{n:.1f} TB"
 
 
 def main() -> None:

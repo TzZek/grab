@@ -14,6 +14,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from grab import log
+from grab.util import format_duration, sanitize_filename
 
 
 def load_video_metadata(media_path: Path) -> dict:
@@ -44,18 +45,6 @@ def load_video_metadata(media_path: Path) -> dict:
     return {}
 
 
-def _format_duration(seconds: int | float | None) -> str:
-    if not seconds:
-        return ""
-    m, s = divmod(int(seconds), 60)
-    h, m = divmod(m, 60)
-    return f"{h}h{m:02d}m" if h else f"{m}m{s:02d}s"
-
-
-def _sanitize_filename(name: str) -> str:
-    return re.sub(r'[\\/*?:"<>|]', "", name).strip()
-
-
 def _build_tags(meta: dict, content_type: str = "video-note") -> list[str]:
     tags = [content_type]
     for cat in (meta.get("categories") or []):
@@ -75,7 +64,7 @@ def _resolve_meta(media_path: Path | None, meta: dict | None) -> tuple[dict, str
     if meta is None:
         meta = load_video_metadata(media_path) if media_path else {}
     title = meta.get("title") or (media_path.stem if media_path else "Untitled")
-    return meta, _sanitize_filename(title)[:120]
+    return meta, sanitize_filename(title, max_len=120)
 
 
 def write_transcript(
@@ -147,11 +136,23 @@ def write_note(
     if content_type == "pdf-note":
         pages = meta.get("pages") or ""
         fm_lines.append(f'pages: {pages}')
+    elif content_type == "article-note":
+        date = meta.get("date") or ""
+        sitename = meta.get("sitename") or ""
+        fm_lines.append(f'date: "{date}"')
+        fm_lines.append(f'site: "{sitename}"')
+    elif content_type == "podcast-note":
+        date = meta.get("date") or ""
+        show = meta.get("show") or ""
+        duration = meta.get("duration") or ""
+        fm_lines.append(f'date: "{date}"')
+        fm_lines.append(f'show: "{show}"')
+        fm_lines.append(f'duration: "{duration}"')
     else:
         upload_date = meta.get("upload_date") or ""
         if upload_date and len(upload_date) == 8:
             upload_date = f"{upload_date[:4]}-{upload_date[4:6]}-{upload_date[6:]}"
-        duration = _format_duration(meta.get("duration"))
+        duration = format_duration(meta.get("duration"))
         fm_lines.append(f'date: {upload_date}')
         fm_lines.append(f'duration: "{duration}"')
 
@@ -173,12 +174,31 @@ def write_note(
             info_parts.append(f"**Pages:** {meta['pages']}")
         if url:
             info_parts.append(f"**Source:** {url}")
+    elif content_type == "article-note":
+        if author:
+            info_parts.append(f"**Author:** {author}")
+        sitename = meta.get("sitename") or ""
+        if sitename:
+            info_parts.append(f"**Site:** {sitename}")
+        if url:
+            info_parts.append(f"**URL:** {url}")
+    elif content_type == "podcast-note":
+        show = meta.get("show") or ""
+        if show:
+            info_parts.append(f"**Show:** {show}")
+        if author:
+            info_parts.append(f"**Host:** {author}")
+        duration = meta.get("duration") or ""
+        if duration:
+            info_parts.append(f"**Duration:** {duration}")
+        if url:
+            info_parts.append(f"**URL:** {url}")
     else:
         if author:
             info_parts.append(f"**Channel:** {author}")
         if url:
             info_parts.append(f"**URL:** {url}")
-        duration = _format_duration(meta.get("duration"))
+        duration = format_duration(meta.get("duration"))
         if duration:
             info_parts.append(f"**Duration:** {duration}")
 

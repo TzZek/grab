@@ -1,6 +1,6 @@
 """Main CLI entry point for grab.
 
-Orchestrates download → probe → compress/image/gif pipeline.
+Orchestrates smart URL routing → download → process → summarize → obsidian.
 Run: grab <url> [options]
      grab config show|set|get
      grab gif <file> [options]
@@ -18,6 +18,7 @@ import shutil
 import sys
 from pathlib import Path
 
+import grab
 from grab import log
 from grab.config import load as load_config
 from grab.download import download
@@ -57,11 +58,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--transcribe", action="store_true", help="Transcribe audio/video to text")
     p.add_argument("--transcribe-backend", help="Transcription backend")
     p.add_argument("--transcribe-model", help="Transcription model name")
-    p.add_argument("--summarize", action="store_true", help="Summarize transcript (implies --transcribe)")
+    p.add_argument("--summarize", action="store_true", help="Summarize content (implies --transcribe for media)")
     p.add_argument("--summarize-backend", help="Summarization backend")
     p.add_argument("--summarize-model", help="Summarization model name")
     p.add_argument("--language", default="", help="Language code for transcription (e.g. en, ja)")
     p.add_argument("--vault", action="store_true", help="Save summary as Obsidian note (implies --summarize)")
+    p.add_argument("-v", "--verbose", action="store_true", help="Verbose output (debug logging to stderr)")
     return p
 
 
@@ -88,8 +90,48 @@ def process_media(info, downloaded_path: Path, out_dir: Path, args: argparse.Nam
     return Path(compress(input_path=downloaded_path, preset=preset, output_path=out).path)
 
 
+def _summarize_to_vault(text: str, url: str, args: argparse.Namespace, config: dict,
+                        content_type: str, folder_key: str, default_folder: str,
+                        output_path: Path, meta: dict | None = None,
+                        media_path: Path | None = None) -> None:
+    """Shared summarize → obsidian pipeline for all content types."""
+    from grab.summarize import summarize as run_summarize, get_default_prompt
+
+    prompt_type = {"pdf-note": "document", "article-note": "article",
+                   "podcast-note": "podcast", "video-note": "video"}.get(content_type, "video")
+    prompt = config.get("summarize_prompt") or get_default_prompt(prompt_type)
+    s_info = run_summarize(
+        text=text,
+        backend=args.summarize_backend or config.get("summarize_backend", "ollama"),
+        model=args.summarize_model or config.get("summarize_model", ""),
+        prompt=prompt, output_path=output_path,
+        api_base=config.get("summarize_api_base", ""),
+        api_key=config.get("summarize_api_key", ""),
+    )
+    if not args.json:
+        log(f"summary: {s_info.path}")
+
+    vault_path = config.get("obsidian_vault", "")
+    if args.vault or vault_path:
+        if not vault_path:
+            log("error: no obsidian_vault configured. Run: grab config set obsidian_vault /path/to/vault")
+            return
+        from grab.obsidian import write_note, print_link
+        vault = Path(vault_path)
+        note_meta = dict(meta or {})
+        note_meta.setdefault("source", url)
+        note_path = write_note(
+            summary=s_info.summary, vault_path=vault,
+            folder=config.get(folder_key, default_folder),
+            media_path=media_path, meta=note_meta,
+            transcript=text, content_type=content_type,
+        )
+        if not args.json:
+            print_link(vault, note_path)
+
+
 def _run_transcribe_summarize(final_path: Path, url: str, args: argparse.Namespace, config: dict) -> None:
-    """Run the transcribe → summarize → obsidian pipeline."""
+    """Run the transcribe → summarize → obsidian pipeline for media."""
     do_summarize = args.summarize or args.vault
     do_transcribe = args.transcribe or do_summarize
     if not do_transcribe:
@@ -106,92 +148,99 @@ def _run_transcribe_summarize(final_path: Path, url: str, args: argparse.Namespa
     if not args.json:
         log(f"transcript: {len(t_info.text)} chars via {t_info.source}")
 
-    if not do_summarize:
-        return
-
-    from grab.summarize import summarize as run_summarize
-    s_info = run_summarize(
-        text=t_info.text,
-        backend=args.summarize_backend or config.get("summarize_backend", "ollama"),
-        model=args.summarize_model or config.get("summarize_model", ""),
-        prompt=config.get("summarize_prompt", ""),
-        output_path=final_path.with_suffix(".summary.md"),
-        api_base=config.get("summarize_api_base", ""),
-        api_key=config.get("summarize_api_key", ""),
-    )
-    if not args.json:
-        log(f"summary: {s_info.output_path}")
-
-    vault_path = config.get("obsidian_vault", "")
-    if args.vault or vault_path:
-        if not vault_path:
-            log("error: no obsidian_vault configured. Run: grab config set obsidian_vault /path/to/vault")
-            return
-        from grab.obsidian import write_note, print_link
-        vault = Path(vault_path)
-        note_path = write_note(
-            summary=s_info.summary, vault_path=vault,
-            folder=config.get("obsidian_folder", "reference/videos"),
+    if do_summarize:
+        _summarize_to_vault(
+            text=t_info.text, url=url, args=args, config=config,
+            content_type="video-note", folder_key="obsidian_folder",
+            default_folder="reference/videos", output_path=final_path.with_suffix(".summary.md"),
             media_path=final_path,
-            transcript=t_info.text,
         )
-        if not args.json:
-            print_link(vault, note_path)
 
 
 def run_pdf(url: str, args: argparse.Namespace, config: dict) -> None:
     """Pipeline for PDF URLs: download → extract text → summarize → obsidian."""
-    from grab.pdf import process_pdf, is_pdf_url
+    from grab.pdf import process_pdf
 
     out_dir = get_output_dir(args.dir, config)
     pdf_info = process_pdf(url, out_dir)
     final_path = Path(pdf_info.path)
 
-    do_summarize = args.summarize or args.vault
-    if do_summarize:
-        from grab.summarize import summarize as run_summarize, get_default_prompt
-        prompt = config.get("summarize_prompt") or get_default_prompt("document")
-        s_info = run_summarize(
-            text=pdf_info.text,
-            backend=args.summarize_backend or config.get("summarize_backend", "ollama"),
-            model=args.summarize_model or config.get("summarize_model", ""),
-            prompt=prompt,
-            output_path=final_path.with_suffix(".summary.md"),
-            api_base=config.get("summarize_api_base", ""),
-            api_key=config.get("summarize_api_key", ""),
+    if args.summarize or args.vault:
+        meta = pdf_info.metadata or {}
+        meta["source"] = url
+        _summarize_to_vault(
+            text=pdf_info.text, url=url, args=args, config=config,
+            content_type="pdf-note", folder_key="obsidian_pdf_folder",
+            default_folder="reference/documents", output_path=final_path.with_suffix(".summary.md"),
+            meta=meta, media_path=final_path,
         )
-        if not args.json:
-            log(f"summary: {s_info.output_path}")
-
-        vault_path = config.get("obsidian_vault", "")
-        if args.vault or vault_path:
-            if not vault_path:
-                log("error: no obsidian_vault configured. Run: grab config set obsidian_vault /path/to/vault")
-            else:
-                from grab.obsidian import write_note, print_link
-                vault = Path(vault_path)
-                meta = pdf_info.metadata or {}
-                meta["source"] = url
-                note_path = write_note(
-                    summary=s_info.summary, vault_path=vault,
-                    folder=config.get("obsidian_pdf_folder", "reference/documents"),
-                    media_path=final_path, meta=meta,
-                    transcript=pdf_info.text,
-                    content_type="pdf-note",
-                )
-                if not args.json:
-                    print_link(vault, note_path)
 
     print(pdf_info.to_json())
     if not args.json:
         log(f"saved: {final_path}")
 
 
-def run_single(url: str, args: argparse.Namespace, config: dict) -> None:
-    from grab.pdf import is_pdf_url
-    if is_pdf_url(url):
-        return run_pdf(url, args, config)
+def run_article(url: str, args: argparse.Namespace, config: dict) -> None:
+    """Pipeline for articles: fetch → extract → summarize → obsidian."""
+    from grab.article import process_article
 
+    out_dir = get_output_dir(args.dir, config)
+    cookies = config.get("cookies_from_browser", "")
+    article_info = process_article(url, out_dir, cookies_from_browser=cookies)
+
+    if args.summarize or args.vault:
+        meta = {
+            "title": article_info.title, "author": article_info.author,
+            "date": article_info.date, "sitename": article_info.sitename,
+            "source": url,
+        }
+        output_path = Path(article_info.path).with_suffix(".summary.md") if article_info.path else None
+        _summarize_to_vault(
+            text=article_info.text, url=url, args=args, config=config,
+            content_type="article-note", folder_key="obsidian_article_folder",
+            default_folder="reference/articles", output_path=output_path,
+            meta=meta,
+        )
+
+    print(article_info.to_json())
+    if not args.json:
+        log(f"extracted: {article_info.title or url}")
+
+
+def run_podcast(url: str, args: argparse.Namespace, config: dict) -> None:
+    """Pipeline for podcasts: resolve → download audio → transcribe → summarize."""
+    from grab.podcast import process_podcast
+
+    out_dir = get_output_dir(args.dir, config)
+    pod_info = process_podcast(url, out_dir)
+
+    if pod_info.path and (args.transcribe or args.summarize or args.vault):
+        audio_path = Path(pod_info.path)
+        _run_transcribe_summarize(audio_path, url, args, config)
+
+    print(pod_info.to_json())
+    if not args.json:
+        log(f"podcast: {pod_info.title or url}")
+
+
+def run_single(url: str, args: argparse.Namespace, config: dict) -> None:
+    from grab.detect import detect, DetectionError, PDF, ARTICLE, PODCAST, MEDIA
+
+    try:
+        content_type = detect(url)
+    except DetectionError as e:
+        log(str(e))
+        sys.exit(1)
+    log(f"detected: {content_type}")
+
+    if content_type == PDF:
+        return run_pdf(url, args, config)
+    if content_type == ARTICLE:
+        return run_article(url, args, config)
+    if content_type == PODCAST:
+        return run_podcast(url, args, config)
+
+    # MEDIA — original download + compress pipeline
     out_dir = get_output_dir(args.dir, config)
     quality = args.quality or config.get("default_quality", "1080")
     cobalt = args.cobalt or config.get("cobalt_api") or None
@@ -247,6 +296,9 @@ _SUBCOMMANDS = {
     "config": ("grab.config", "main", "grab-config"),
     "gif": ("grab.gif", "main", "grab-gif"),
     "pdf": ("grab.pdf", "main", "grab-pdf"),
+    "article": ("grab.article", "main", "grab-article"),
+    "podcast": ("grab.podcast", "main", "grab-podcast"),
+    "detect": ("grab.detect", "main", "grab-detect"),
     "transcribe": ("grab.transcribe", "main", "grab-transcribe"),
     "summarize": ("grab.summarize", "main", "grab-summarize"),
     "cobalt": ("grab.cobalt", "main", "grab-cobalt"),
@@ -263,6 +315,7 @@ def main() -> None:
 
     parser = build_parser()
     args = parser.parse_args()
+    grab.set_verbose(args.verbose)
     config = load_config()
 
     if args.batch:

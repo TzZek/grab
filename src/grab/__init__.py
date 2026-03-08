@@ -26,6 +26,19 @@ class MediaInfo:
         return json.dumps(self.to_dict(), indent=2)
 
 
+_verbose: bool = False
+
+
+def set_verbose(v: bool) -> None:
+    global _verbose
+    _verbose = v
+
+
+def vlog(msg: str) -> None:
+    if _verbose:
+        print(f"  [{msg}]", file=sys.stderr)
+
+
 def log(msg: str) -> None:
     """Log to stderr so stdout stays clean for structured output."""
     print(msg, file=sys.stderr)

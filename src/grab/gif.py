@@ -13,6 +13,7 @@ from pathlib import Path
 
 from grab import MediaInfo, log
 from grab.probe import probe as probe_file
+from grab.util import human_size
 
 
 def to_gif(
@@ -47,7 +48,7 @@ def to_gif(
 
     _generate_gif(input_path, output_path, fps, width, start, duration)
     info = probe_file(output_path)
-    log(f"gif: {_h(info.size_bytes)}, {info.width}x{info.height}")
+    log(f"gif: {human_size(info.size_bytes)}, {info.width}x{info.height}")
     return info
 
 
@@ -113,7 +114,7 @@ def _compress_gif(
         if size <= max_bytes:
             log(f"gif fits at {try_fps}fps, {try_width}px wide")
             return probe_file(output_path)
-        log(f"gif too large at {try_fps}fps {try_width}px: {_h(size)}, trying smaller...")
+        log(f"gif too large at {try_fps}fps {try_width}px: {human_size(size)}, trying smaller...")
 
     log("warning: could not reach target GIF size")
     return probe_file(output_path)
@@ -124,14 +125,6 @@ def _run_ffmpeg(args: list[str]) -> None:
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         raise RuntimeError(f"ffmpeg failed:\n{result.stderr}")
-
-
-def _h(n: int) -> str:
-    for unit in ("B", "KB", "MB", "GB"):
-        if n < 1024:
-            return f"{n:.1f} {unit}"
-        n /= 1024
-    return f"{n:.1f} TB"
 
 
 def main() -> None:

@@ -14,6 +14,7 @@ from pathlib import Path
 from grab import MediaInfo, log
 from grab.probe import probe
 from grab.presets import Preset, resolve_preset
+from grab.util import human_size
 
 
 def compress(
@@ -47,7 +48,7 @@ def compress(
 
     # Already small enough?
     if info.size_bytes <= target_bytes:
-        log(f"file already within target ({_h(info.size_bytes)} <= {_h(target_bytes)})")
+        log(f"file already within target ({human_size(info.size_bytes)} <= {human_size(target_bytes)})")
         if output_path:
             import shutil
             output_path = Path(output_path)
@@ -114,7 +115,7 @@ def compress(
         f.unlink(missing_ok=True)
 
     result = probe(output_path)
-    log(f"compressed: {_h(result.size_bytes)} (target: {_h(target_bytes)})")
+    log(f"compressed: {human_size(result.size_bytes)} (target: {human_size(target_bytes)})")
     return result
 
 
@@ -123,14 +124,6 @@ def _run_ffmpeg(args: list[str]) -> None:
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         raise RuntimeError(f"ffmpeg failed:\n{result.stderr}")
-
-
-def _h(n: int) -> str:
-    for unit in ("B", "KB", "MB", "GB"):
-        if n < 1024:
-            return f"{n:.1f} {unit}"
-        n /= 1024
-    return f"{n:.1f} TB"
 
 
 def main() -> None:

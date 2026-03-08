@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 
 from grab import MediaInfo, log
+from grab.util import human_size
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".heic", ".avif", ".bmp", ".tiff"}
 
@@ -87,7 +88,7 @@ def resize_image(
             raise RuntimeError(f"magick failed: {result.stderr}")
 
     info = image_info(output_path)
-    log(f"image: {info['width']}x{info['height']}, {_h(info['size_bytes'])}")
+    log(f"image: {info['width']}x{info['height']}, {human_size(info['size_bytes'])}")
 
     return MediaInfo(
         path=str(output_path.resolve()),
@@ -144,14 +145,6 @@ def _compress_to_size(
             return
 
     log("warning: could not reach target size")
-
-
-def _h(n: int) -> str:
-    for unit in ("B", "KB", "MB", "GB"):
-        if n < 1024:
-            return f"{n:.1f} {unit}"
-        n /= 1024
-    return f"{n:.1f} TB"
 
 
 def main() -> None:

@@ -12,12 +12,12 @@ Run directly: python -m grab.summarize transcript.txt --backend ollama --model l
 from __future__ import annotations
 
 import json
-import re
 import sys
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
 from grab import log
+from grab.util import parse_srt
 
 DEFAULT_PROMPT = """/no_think
 You are summarizing a video transcript into a thorough reference note.
@@ -56,9 +56,49 @@ Rules:
 Document text:
 {text}"""
 
+DEFAULT_ARTICLE_PROMPT = """/no_think
+You are summarizing a web article into a detailed reference note.
+
+Rules:
+- Start with a 1-2 sentence TL;DR
+- Then use "## Key Points" with bullet points for the main arguments or findings
+- Use "## Details" for supporting facts, quotes, data, and specifics
+  - Be thorough — capture all significant details, not just the headline
+  - Include notable quotes, statistics, or examples from the article
+- Use "## Context" for background info, related events, or historical context
+- Use "## Resources" if any links, tools, people, or references are mentioned
+- Do NOT repeat information across sections
+- Do NOT include a heading for the note title (it's handled externally)
+- Use markdown formatting: **bold** for emphasis, `code` for technical terms
+- Aim for ~400-800 words. Cover all key points without padding or redundancy.
+
+Article text:
+{text}"""
+
+DEFAULT_PODCAST_PROMPT = """/no_think
+You are summarizing a podcast episode transcript into a detailed reference note.
+
+Rules:
+- Start with a 1-2 sentence TL;DR of the episode
+- Then use "## Key Ideas" with bullet points for the main topics discussed
+- Use "## Details" for supporting points, stories, examples, and specifics
+  - Be thorough — capture all significant discussion points
+  - Note any disagreements, nuances, or caveats mentioned
+- Use "## Quotes" for notable or memorable quotes from speakers (with attribution if possible)
+- Use "## Resources" if any tools, books, links, or people are mentioned
+- Do NOT repeat information across sections
+- Do NOT include a heading for the note title (it's handled externally)
+- Use markdown formatting: **bold** for emphasis, `code` for technical terms
+- Aim for ~400-800 words. Cover all key points without padding or redundancy.
+
+Transcript:
+{text}"""
+
 _PROMPTS = {
     "video": DEFAULT_PROMPT,
     "document": DEFAULT_PDF_PROMPT,
+    "article": DEFAULT_ARTICLE_PROMPT,
+    "podcast": DEFAULT_PODCAST_PROMPT,
 }
 
 
@@ -73,7 +113,7 @@ class SummaryInfo:
     source: str
     model: str
     input_chars: int
-    output_path: str | None = None
+    path: str | None = None
 
     def to_dict(self) -> dict:
         return {k: v for k, v in asdict(self).items() if v is not None}
@@ -135,21 +175,6 @@ def _summarize_openai_compatible(text: str, model: str, prompt: str, api_base: s
 
 
 # ---------------------------------------------------------------------------
-# SRT parser
-# ---------------------------------------------------------------------------
-
-def _parse_srt(srt_text: str) -> str:
-    """Strip timestamps from SRT, return plain text."""
-    lines = []
-    for line in srt_text.splitlines():
-        line = line.strip()
-        if not line or line.isdigit() or re.match(r"\d{2}:\d{2}:\d{2}", line):
-            continue
-        lines.append(line)
-    return " ".join(lines)
-
-
-# ---------------------------------------------------------------------------
 # Main API
 # ---------------------------------------------------------------------------
 
@@ -187,7 +212,7 @@ def summarize(
 
     return SummaryInfo(
         summary=summary, source=backend, model=model or "(default)",
-        input_chars=len(text), output_path=str(output_path) if output_path else None,
+        input_chars=len(text), path=str(output_path) if output_path else None,
     )
 
 
@@ -206,7 +231,7 @@ def summarize_file(
 
     content = input_path.read_text()
     if input_path.suffix == ".srt":
-        text = _parse_srt(content)
+        text = parse_srt(content)
     elif input_path.suffix == ".json":
         try:
             text = json.loads(content).get("text", content)

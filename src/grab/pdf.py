@@ -134,20 +134,14 @@ def extract_text(pdf_path: Path) -> tuple[str, dict]:
     return full_text, metadata
 
 
-def process_pdf(url_or_path: str, output_dir: Path | None = None) -> PDFInfo:
+def process_pdf(url_or_path: str, output_dir: Path) -> PDFInfo:
     """Download (if URL) and extract text from a PDF."""
-    import tempfile
-
     path = Path(url_or_path)
     is_local = path.exists() and path.suffix.lower() == ".pdf"
 
     if is_local:
         pdf_path = path
-        if output_dir is None:
-            output_dir = path.parent
     else:
-        if output_dir is None:
-            output_dir = Path(tempfile.mkdtemp(prefix="grab_pdf_"))
         pdf_path = download_pdf(url_or_path, output_dir)
 
     text, metadata = extract_text(pdf_path)
@@ -191,8 +185,18 @@ def main() -> None:
     parser.add_argument("--output-dir", "-d", help="Output directory")
     args = parser.parse_args()
 
-    out_dir = Path(args.output_dir) if args.output_dir else None
-    info = process_pdf(args.input, out_dir)
+    if args.output_dir:
+        out_dir = Path(args.output_dir)
+        info = process_pdf(args.input, out_dir)
+    else:
+        # Local files use parent dir; URLs need a temp dir
+        input_path = Path(args.input)
+        if input_path.exists() and input_path.suffix.lower() == ".pdf":
+            info = process_pdf(args.input, input_path.parent)
+        else:
+            from grab.util import temp_dir
+            with temp_dir("grab_pdf_") as d:
+                info = process_pdf(args.input, d)
     print(info.to_json())
 
 

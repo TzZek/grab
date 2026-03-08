@@ -14,12 +14,12 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import subprocess
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
 from grab import log
+from grab.util import parse_srt
 
 
 @dataclass
@@ -80,16 +80,6 @@ def _save_transcript(segments: list, lang: str | None, source: str,
                           srt_path=str(srt_path), json_path=str(json_path))
 
 
-def _parse_srt(srt_text: str) -> str:
-    lines = []
-    for line in srt_text.splitlines():
-        line = line.strip()
-        if not line or line.isdigit() or re.match(r"\d{2}:\d{2}:\d{2}", line):
-            continue
-        lines.append(line)
-    return " ".join(lines)
-
-
 # ---------------------------------------------------------------------------
 # Backend: ytdlp-subs
 # ---------------------------------------------------------------------------
@@ -126,7 +116,7 @@ def _transcribe_ytdlp_subs(url_or_path: str, output_dir: Path, language: str) ->
     for ext in (f".{lang}.srt", f".{lang}.vtt"):
         srt_path = output_dir / f"subs{ext}"
         if srt_path.exists():
-            text = _parse_srt(srt_path.read_text())
+            text = parse_srt(srt_path.read_text())
             final = srt_path.with_suffix(".srt")
             if srt_path != final:
                 srt_path.rename(final)
@@ -184,7 +174,7 @@ def _transcribe_whisper_cpp(input_path: Path, output_dir: Path, model: str, lang
         raise RuntimeError(f"whisper.cpp failed:\n{result.stderr}")
     if not srt_out.exists():
         srt_out = srt_out.with_suffix(".srt")
-    text = _parse_srt(srt_out.read_text()) if srt_out.exists() else ""
+    text = parse_srt(srt_out.read_text()) if srt_out.exists() else ""
     return TranscriptInfo(text=text, source="whisper.cpp", language=language or None, srt_path=str(srt_out))
 
 
