@@ -45,7 +45,8 @@ def load_video_metadata(media_path: Path) -> dict:
     return {}
 
 
-def _build_tags(meta: dict, content_type: str = "video-note") -> list[str]:
+def _build_tags(meta: dict, content_type: str = "video-note",
+                auto_tags: list[str] | None = None) -> list[str]:
     tags = [content_type]
     for cat in (meta.get("categories") or []):
         tag = cat.lower().replace(" ", "-").replace("&", "and")
@@ -56,6 +57,13 @@ def _build_tags(meta: dict, content_type: str = "video-note") -> list[str]:
         slug = re.sub(r"[^a-z0-9]+", "-", author.lower()).strip("-")
         if slug:
             tags.append(slug)
+    # Merge auto-tags, deduplicating
+    if auto_tags:
+        seen = set(tags)
+        for t in auto_tags:
+            if t not in seen:
+                tags.append(t)
+                seen.add(t)
     return tags
 
 
@@ -107,19 +115,21 @@ def write_note(
     meta: dict | None = None,
     transcript: str | None = None,
     content_type: str = "video-note",
+    auto_tags: list[str] | None = None,
 ) -> Path:
     """Write a summary as an Obsidian note with YAML frontmatter.
 
     If transcript is provided, also writes a companion transcript note
     and adds a [[backlink]] to it from the summary.
     content_type: "video-note" or "pdf-note" — controls tags, frontmatter, callout.
+    auto_tags: topic tags from LLM summarization to merge into frontmatter.
     """
     meta, safe_title = _resolve_meta(media_path, meta)
 
     title = meta.get("title") or safe_title
     author = meta.get("channel") or meta.get("uploader") or meta.get("author") or ""
     url = meta.get("webpage_url") or meta.get("original_url") or meta.get("source") or ""
-    tags = _build_tags(meta, content_type)
+    tags = _build_tags(meta, content_type, auto_tags=auto_tags)
 
     # Build frontmatter based on content type
     tags_yaml = "\n".join(f"  - {t}" for t in tags)

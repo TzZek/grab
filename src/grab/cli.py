@@ -100,6 +100,8 @@ def _summarize_to_vault(text: str, url: str, args: argparse.Namespace, config: d
     prompt_type = {"pdf-note": "document", "article-note": "article",
                    "podcast-note": "podcast", "video-note": "video"}.get(content_type, "video")
     prompt = config.get("summarize_prompt") or get_default_prompt(prompt_type)
+    do_auto_tags = config.get("auto_tags", "true").lower() == "true"
+    taxonomy = config.get("auto_tags_taxonomy", "")
     s_info = run_summarize(
         text=text,
         backend=args.summarize_backend or config.get("summarize_backend", "ollama"),
@@ -107,6 +109,7 @@ def _summarize_to_vault(text: str, url: str, args: argparse.Namespace, config: d
         prompt=prompt, output_path=output_path,
         api_base=config.get("summarize_api_base", ""),
         api_key=config.get("summarize_api_key", ""),
+        taxonomy=taxonomy, auto_tags=do_auto_tags,
     )
     if not args.json:
         log(f"summary: {s_info.path}")
@@ -125,6 +128,7 @@ def _summarize_to_vault(text: str, url: str, args: argparse.Namespace, config: d
             folder=config.get(folder_key, default_folder),
             media_path=media_path, meta=note_meta,
             transcript=text, content_type=content_type,
+            auto_tags=s_info.tags,
         )
         if not args.json:
             print_link(vault, note_path)

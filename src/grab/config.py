@@ -35,6 +35,8 @@ DEFAULTS = {
     "obsidian_pdf_folder": "reference/documents",
     "obsidian_article_folder": "reference/articles",
     "obsidian_podcast_folder": "reference/podcasts",
+    "auto_tags": "true",
+    "auto_tags_taxonomy": "",
 }
 
 
