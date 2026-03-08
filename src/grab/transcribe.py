@@ -104,7 +104,8 @@ def _transcribe_ytdlp_subs(url_or_path: str, output_dir: Path, language: str) ->
             return None
 
     lang = language or "en"
-    cmd = ["yt-dlp", "--write-auto-subs", "--write-subs", "--sub-lang", lang,
+    # Only grab manual/professional subs, not auto-generated garbage
+    cmd = ["yt-dlp", "--write-subs", "--sub-lang", lang,
            "--sub-format", "srt", "--skip-download", "-o", str(output_dir / "subs"), url]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
